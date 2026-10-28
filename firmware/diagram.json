@@ -1,0 +1,102 @@
+{
+  "version": 1,
+  "author": "Smart Patient Monitor Team",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "board-esp32-devkit-c-v4",
+      "id": "esp",
+      "top": 0,
+      "left": 0,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-ssd1306",
+      "id": "oled",
+      "top": -160,
+      "left": -60,
+      "attrs": { "i2cAddress": "0x3c" }
+    },
+    {
+      "type": "wokwi-dht22",
+      "id": "dht",
+      "top": -150,
+      "left": 160,
+      "attrs": { "temperature": "37.0", "humidity": "50" }
+    },
+    {
+      "type": "wokwi-potentiometer",
+      "id": "pot_hr",
+      "top": 160,
+      "left": -140,
+      "attrs": { "label": "Heart Rate (BPM)" }
+    },
+    {
+      "type": "wokwi-potentiometer",
+      "id": "pot_spo2",
+      "top": 280,
+      "left": -140,
+      "attrs": { "label": "SpO2 (%)" }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn_sos",
+      "top": 200,
+      "left": 140,
+      "attrs": { "color": "red", "label": "SOS Panic" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led_alarm",
+      "top": 100,
+      "left": 140,
+      "attrs": { "color": "red", "label": "Critical Alert" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led_wifi",
+      "top": 60,
+      "left": 140,
+      "attrs": { "color": "green", "label": "WiFi / Heartbeat" }
+    },
+    {
+      "type": "wokwi-buzzer",
+      "id": "buzzer",
+      "top": -40,
+      "left": 200,
+      "attrs": { "hasVolume": "1" }
+    }
+  ],
+  "connections": [
+    [ "esp:3V3", "oled:VCC", "red", [ "v0" ] ],
+    [ "esp:GND.1", "oled:GND", "black", [ "v0" ] ],
+    [ "esp:22", "oled:SCL", "yellow", [ "v0" ] ],
+    [ "esp:21", "oled:SDA", "blue", [ "v0" ] ],
+
+    [ "esp:3V3", "dht:VCC", "red", [ "v0" ] ],
+    [ "esp:GND.1", "dht:GND", "black", [ "v0" ] ],
+    [ "esp:15", "dht:SDA", "green", [ "v0" ] ],
+
+    [ "esp:3V3", "pot_hr:VCC", "red", [ "v0" ] ],
+    [ "esp:GND.2", "pot_hr:GND", "black", [ "v0" ] ],
+    [ "esp:34", "pot_hr:SIG", "orange", [ "v0" ] ],
+
+    [ "esp:3V3", "pot_spo2:VCC", "red", [ "v0" ] ],
+    [ "esp:GND.2", "pot_spo2:GND", "black", [ "v0" ] ],
+    [ "esp:32", "pot_spo2:SIG", "purple", [ "v0" ] ],
+
+    [ "esp:4", "btn_sos:1.l", "red", [ "v0" ] ],
+    [ "esp:GND.2", "btn_sos:2.l", "black", [ "v0" ] ],
+
+    [ "esp:2", "led_alarm:A", "red", [ "v0" ] ],
+    [ "esp:GND.2", "led_alarm:C", "black", [ "v0" ] ],
+
+    [ "esp:19", "led_wifi:A", "green", [ "v0" ] ],
+    [ "esp:GND.2", "led_wifi:C", "black", [ "v0" ] ],
+
+    [ "esp:5", "buzzer:1", "orange", [ "v0" ] ],
+    [ "esp:GND.2", "buzzer:2", "black", [ "v0" ] ]
+  ],
+  "dependencies": {}
+}
+

@@ -1,0 +1,29 @@
+{
+  "name": "smart-patient-monitor-tools",
+  "version": "1.0.0",
+  "description": "Simulation and diagnostic CLI tools for Smart Patient Monitor IoT ecosystem",
+  "main": "publish.js",
+  "scripts": {
+    "start": "node publish.js",
+    "publish": "node publish.js",
+    "subscribe": "node subscribe.js",
+    "simulate:normal": "node publish.js --mode normal",
+    "simulate:alert": "node publish.js --mode alert",
+    "simulate:sos": "node publish.js --mode sos",
+    "monitor": "node subscribe.js"
+  },
+  "keywords": [
+    "mqtt",
+    "iot",
+    "patient-monitor",
+    "esp32",
+    "healthcare",
+    "telemetry"
+  ],
+  "author": "Smart Patient Monitor Team",
+  "license": "MIT",
+  "dependencies": {
+    "mqtt": "^5.10.1"
+  }
+}
+

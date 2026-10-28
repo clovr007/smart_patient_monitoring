@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smart Patient Monitor</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --border: #30363d; --text: #e6edf3; --muted: #8b949e;
+    --ok: #2ea043; --warn: #d29922; --crit: #f85149; --off: #6e7681;
+  }
+  :root[data-theme="light"] {
+    --bg: #f4f6f8; --panel: #ffffff; --border: #d0d7de; --text: #1f2328; --muted: #59636e;
+    --ok: #1a7f37; --warn: #9a6700; --crit: #cf222e; --off: #8c959f;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; min-height: 100vh; display: flex; flex-direction: column; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 14px 20px; border-bottom: 1px solid var(--border); }
+  h1 { font-size: 1.15rem; margin: 0; }
+  .head-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .conn { display: flex; align-items: center; gap: 8px; font-size: .85rem; color: var(--muted); }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--off); }
+  .dot.live { background: var(--ok); } .dot.wait { background: var(--warn); } .dot.bad { background: var(--crit); } .dot.demo { background: #58a6ff; }
+  button { background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 7px 12px; font-size: .85rem; cursor: pointer; }
+  button:hover { border-color: var(--muted); }
+  label.toggle { display: flex; align-items: center; gap: 6px; font-size: .85rem; cursor: pointer; }
+  main { flex: 1; width: 100%; max-width: 1100px; margin: 0 auto; padding: 20px; display: flex; flex-direction: column; gap: 18px; }
+  #banner { text-align: center; padding: 16px; border-radius: 12px; font-size: 1.5rem; font-weight: 700; letter-spacing: .08em; color: #fff; background: var(--off); transition: background .3s; }
+  #banner.stable { background: var(--ok); } #banner.warning { background: var(--warn); } #banner.critical { background: var(--crit); animation: pulse 1s infinite; }
+  #banner small { display: block; font-size: .75rem; font-weight: 400; letter-spacing: 0; opacity: .9; margin-top: 4px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+  .card { background: var(--panel); border: 2px solid var(--border); border-radius: 14px; padding: 20px; text-align: center; transition: border-color .3s; }
+  .card .label { color: var(--muted); font-size: .9rem; text-transform: uppercase; letter-spacing: .08em; }
+  .card .value { font-size: 3.6rem; font-weight: 700; line-height: 1.2; margin: 6px 0; font-variant-numeric: tabular-nums; }
+  .card .unit { font-size: 1rem; color: var(--muted); font-weight: 400; }
+  .card .state { font-size: .8rem; font-weight: 600; text-transform: uppercase; }
+  .card.stable { border-color: var(--ok); } .card.stable .value, .card.stable .state { color: var(--ok); }
+  .card.warning { border-color: var(--warn); } .card.warning .value, .card.warning .state { color: var(--warn); }
+  .card.critical { border-color: var(--crit); animation: pulse 1s infinite; } .card.critical .value, .card.critical .state { color: var(--crit); }
+  .card.none .value { color: var(--off); }
+  @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(248,81,73,.55); } 50% { box-shadow: 0 0 0 10px rgba(248,81,73,0); } }
+  .demo-panel { background: var(--panel); border: 1px dashed var(--border); border-radius: 12px; padding: 12px 16px; display: none; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .demo-panel.show { display: flex; }
+  .demo-panel span { color: var(--muted); font-size: .85rem; }
+  .meta { color: var(--muted); font-size: .8rem; text-align: center; }
+  .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+  .chart-box { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px 10px; }
+  .chart-box h2 { margin: 0 0 8px; font-size: .85rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  .chart-wrap { position: relative; height: 200px; }
+  .chart-note { color: var(--muted); font-size: .75rem; text-align: center; margin-top: -6px; }
+  .log-box { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; }
+  .log-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .log-head h2 { margin: 0; font-size: .85rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  #logList { list-style: none; margin: 0; padding: 0; max-height: 260px; overflow-y: auto; }
+  #logList li { display: flex; align-items: baseline; gap: 10px; padding: 7px 0; border-top: 1px solid var(--border); font-size: .85rem; }
+  #logList li:first-child { border-top: none; }
+  .log-time { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .badge { min-width: 72px; text-align: center; border-radius: 6px; padding: 2px 6px; font-size: .7rem; font-weight: 700; color: #fff; background: var(--off); }
+  .badge.stable { background: var(--ok); } .badge.warning { background: var(--warn); } .badge.critical { background: var(--crit); } .badge.offline { background: var(--off); } .badge.info { background: #58a6ff; }
+  .log-empty { color: var(--muted); }
+  details.log-box summary { cursor: pointer; font-size: .85rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  .thr-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px 16px; margin-top: 12px; }
+  .thr-grid label { display: flex; flex-direction: column; gap: 4px; font-size: .8rem; color: var(--muted); }
+  .thr-grid input { background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font-size: .9rem; }
+  .thr-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+  #thrMsg { font-size: .8rem; }
+  #thrMsg.ok { color: var(--ok); } #thrMsg.err { color: var(--crit); }
+  .news-box { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; }
+  .news-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .news-head h2 { margin: 0; font-size: .85rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  .news-sub { color: var(--muted); font-size: .75rem; }
+  .news-body { display: flex; align-items: center; justify-content: center; gap: 28px; flex-wrap: wrap; margin-top: 6px; }
+  #gauge { width: 240px; max-width: 100%; height: auto; }
+  #gauge .seg { fill: none; stroke-width: 14; }
+  #gauge .seg.low { stroke: var(--ok); } #gauge .seg.medium { stroke: var(--warn); } #gauge .seg.high { stroke: var(--crit); }
+  #gauge .gtxt { fill: var(--muted); font-size: 10px; text-anchor: middle; }
+  #gauge .needle-line { stroke: var(--text); stroke-width: 3; stroke-linecap: round; }
+  #gauge .hub { fill: var(--text); }
+  #needle { transform-origin: 100px 100px; transition: transform .5s ease, opacity .3s; }
+  .news-info { text-align: center; min-width: 170px; }
+  .news-score { font-size: 3rem; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .news-score small { font-size: 1rem; color: var(--muted); font-weight: 400; }
+  .news-label { font-size: 1.1rem; font-weight: 700; letter-spacing: .08em; margin-top: 2px; }
+  .news-label.none { color: var(--off); } .news-label.low { color: var(--ok); } .news-label.medium { color: var(--warn); } .news-label.high { color: var(--crit); }
+  .news-break { color: var(--muted); font-size: .8rem; margin-top: 4px; }
+  .log-head .btns { display: flex; gap: 8px; }
+  .hist-wrap { max-height: 280px; overflow: auto; margin-top: 4px; }
+  table.hist { width: 100%; border-collapse: collapse; font-size: .82rem; font-variant-numeric: tabular-nums; }
+  .hist th, .hist td { text-align: left; padding: 5px 10px; border-top: 1px solid var(--border); white-space: nowrap; }
+  .hist th { position: sticky; top: 0; background: var(--panel); color: var(--muted); font-weight: 600; border-top: none; }
+  .st-stable { color: var(--ok); font-weight: 600; } .st-warning { color: var(--warn); font-weight: 600; } .st-critical { color: var(--crit); font-weight: 600; }
+  footer { border-top: 1px solid var(--border); padding: 12px 20px; text-align: center; color: var(--muted); font-size: .8rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Smart Patient Health Monitor &middot; Ward 1</h1>
+  <div class="head-right">
+    <div class="conn"><span id="connDot" class="dot"></span><span id="connText">Starting...</span></div>
+    <label class="toggle"><input type="checkbox" id="demoToggle"> Demo data</label>
+    <button id="muteBtn" type="button" title="Beeps when the patient becomes CRITICAL. Click anywhere on the page once so the browser allows sound.">Sound: ON</button>
+    <button id="themeBtn" type="button">Light mode</button>
+  </div>
+</header>
+
+<main>
+  <div id="banner">WAITING FOR DATA<small>No readings yet</small></div>
+
+  <div class="cards">
+    <div class="card none" id="card-hr">
+      <div class="label">Heart Rate</div>
+      <div class="value"><span id="val-hr">--</span> <span class="unit">bpm</span></div>
+      <div class="state" id="state-hr">no data</div>
+    </div>
+    <div class="card none" id="card-spo2">
+      <div class="label">SpO&#8322;</div>
+      <div class="value"><span id="val-spo2">--</span> <span class="unit">%</span></div>
+      <div class="state" id="state-spo2">no data</div>
+    </div>
+    <div class="card none" id="card-temp">
+      <div class="label">Temperature</div>
+      <div class="value"><span id="val-temp">--</span> <span class="unit">&deg;C</span></div>
+      <div class="state" id="state-temp">no data</div>
+    </div>
+  </div>
+
+  <section class="news-box">
+    <div class="news-head"><h2>Early warning score</h2><span class="news-sub">NEWS2-style, simplified (HR, SpO&#8322;, temperature only)</span></div>
+    <div class="news-body">
+      <svg id="gauge" viewBox="0 0 200 120" role="img" aria-label="Early warning score gauge from 0 to 10"></svg>
+      <div class="news-info">
+        <div class="news-score"><span id="newsScore">--</span><small> / 10</small></div>
+        <div class="news-label none" id="newsLabel">NO DATA</div>
+        <div class="news-break" id="newsBreakdown">-</div>
+      </div>
+    </div>
+    <div class="chart-note" style="margin-top:6px">Low 0-4, Medium 5-6 (or any single vital scoring 3), High 7+. Missing NEWS2 inputs (breathing rate, blood pressure, consciousness) are not scored. Not a clinical score.</div>
+  </section>
+
+  <div class="charts">
+    <div class="chart-box"><h2>Heart rate (bpm)</h2><div class="chart-wrap"><canvas id="chart-hr"></canvas></div></div>
+    <div class="chart-box"><h2>SpO&#8322; (%)</h2><div class="chart-wrap"><canvas id="chart-spo2"></canvas></div></div>
+    <div class="chart-box"><h2>Temperature (&deg;C)</h2><div class="chart-wrap"><canvas id="chart-temp"></canvas></div></div>
+  </div>
+  <div class="chart-note">Last 60 readings. Dashed lines: amber = warning threshold, red = critical threshold.</div>
+
+  <section class="log-box">
+    <div class="log-head"><h2>Alert log</h2><button id="clearLog" type="button">Clear</button></div>
+    <ul id="logList"><li class="log-empty">No events yet</li></ul>
+  </section>
+
+  <section class="log-box" id="histBox">
+    <div class="log-head">
+      <h2>History</h2>
+      <div class="btns"><button id="csvBtn" type="button">Export CSV</button><button id="histClear" type="button">Clear</button></div>
+    </div>
+    <div class="hist-wrap">
+      <table class="hist">
+        <thead><tr><th>Time</th><th>HR (bpm)</th><th>SpO2 (%)</th><th>Temp (C)</th><th>Status</th><th>Score</th></tr></thead>
+        <tbody id="histBody"></tbody>
+      </table>
+    </div>
+    <div class="chart-note" id="histNote" style="margin-top:8px">No readings yet.</div>
+  </section>
+
+  <details class="log-box" id="thrPanel">
+    <summary>Thresholds (editable)</summary>
+    <div class="thr-grid" id="thrGrid"></div>
+    <div class="thr-actions">
+      <button id="thrSave" type="button">Save</button>
+      <button id="thrReset" type="button">Reset to defaults</button>
+      <span id="thrMsg"></span>
+    </div>
+    <div class="chart-note" style="margin-top:10px">Changes affect this dashboard only (card colours, charts, banner, log). The ESP32 firmware keeps its own thresholds, so keep both in step.</div>
+  </details>
+
+  <div class="demo-panel" id="demoPanel">
+    <span>Demo scenario:</span>
+    <button type="button" data-scn="normal">Normal</button>
+    <button type="button" data-scn="fever">Simulate Fever</button>
+    <button type="button" data-scn="lowspo2">Simulate Low SpO2</button>
+  </div>
+
+  <div class="meta" id="meta">Last update: never</div>
+</main>
+
+<footer>Academic prototype. Monitoring and alerting only, not a diagnostic device. Simulated sensor data.</footer>
+
+<!-- Libraries: local copy first (works with no internet), CDN as fallback -->
+<script src="lib/mqtt.min.js"></script>
+<script>window.mqtt || document.write('<script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"><\/script>');</script>
+<script src="lib/chart.umd.min.js"></script>
+<script>window.Chart || document.write('<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"><\/script>');</script>
+<script>
+/* ===================== CONFIG ===================== */
+const CONFIG = {
+  broker: "wss://broker.hivemq.com:8884/mqtt",
+  topic: "ccesbhagya/ward1/vitals",
+  offlineAfterMs: 10000,
+  demoIntervalMs: 2000,
+  thresholds: {
+    spo2: { warnBelow: 95, critBelow: 92 },
+    hr:   { warnLow: 55, warnHigh: 110, critLow: 50, critHigh: 120 },
+    temp: { warnAbove: 37.5, critAbove: 38.0 }
+  }
+};
+/* ================================================== */
+
+const $ = id => document.getElementById(id);
+const RANK = { stable: 0, warning: 1, critical: 2 };
+let lastMsgAt = null;       // Date.now() of last accepted reading
+let demoOn = false;
+let demoScenario = "normal";
+let demoTimer = null;
+let mqttState = "connecting";
+let client = null;
+
+/* ---------- Threshold logic ---------- */
+function levelHR(v) {
+  const t = CONFIG.thresholds.hr;
+  if (v < t.critLow || v > t.critHigh) return "critical";
+  if (v < t.warnLow || v > t.warnHigh) return "warning";
+  return "stable";
+}
+function levelSpO2(v) {
+  const t = CONFIG.thresholds.spo2;
+  if (v < t.critBelow) return "critical";
+  if (v < t.warnBelow) return "warning";
+  return "stable";
+}
+function levelTemp(v) {
+  const t = CONFIG.thresholds.temp;
+  if (v > t.critAbove) return "critical";
+  if (v > t.warnAbove) return "warning";
+  return "stable";
+}
+function worst(...levels) { return levels.reduce((a, b) => RANK[b] > RANK[a] ? b : a, "stable"); }
+
+/* ---------- Rendering ---------- */
+function setCard(key, text, level) {
+  $("val-" + key).textContent = text;
+  const card = $("card-" + key);
+  card.className = "card " + level;
+  $("state-" + key).textContent = level === "none" ? "no data" : level;
+}
+
+function setBanner(level, sub) {
+  const b = $("banner");
+  const label = { stable: "STABLE", warning: "WARNING", critical: "CRITICAL", offline: "OFFLINE", wait: "WAITING FOR DATA" }[level];
+  b.className = level === "offline" || level === "wait" ? "" : level;
+  b.innerHTML = label + "<small>" + sub + "</small>";
+}
+
+function setConn(kind, text) {
+  $("connDot").className = "dot " + kind;
+  $("connText").textContent = text;
+}
+
+function render(v) {
+  const lHR = levelHR(v.hr), lO2 = levelSpO2(v.spo2), lT = levelTemp(v.temp);
+  setCard("hr", Math.round(v.hr), lHR);
+  setCard("spo2", Math.round(v.spo2), lO2);
+  setCard("temp", v.temp.toFixed(1), lT);
+  const overall = worst(lHR, lO2, lT);
+  const reasons = [];
+  if (lHR !== "stable") reasons.push("HR " + lHR);
+  if (lO2 !== "stable") reasons.push("SpO2 " + lO2);
+  if (lT !== "stable") reasons.push("Temp " + lT);
+  setBanner(overall, reasons.length ? reasons.join(" / ") : "All vitals within range");
+  setScore(v);
+  $("meta").textContent = "Last update: " + new Date().toLocaleTimeString();
+}
+
+function clearToNoData() {
+  ["hr", "spo2", "temp"].forEach(k => setCard(k, "--", "none"));
+  setScore(null);
+}
+
+/* ---------- Charts ---------- */
+const HISTORY = 60;
+const charts = {};
+const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+// [label, value, css colour variable] for each dashed threshold line
+function thresholdLines(key) {
+  const t = CONFIG.thresholds[key];
+  if (key === "hr")   return [["Warning", t.warnLow, "--warn"], ["Warning", t.warnHigh, "--warn"], ["Critical", t.critLow, "--crit"], ["Critical", t.critHigh, "--crit"]];
+  if (key === "spo2") return [["Warning", t.warnBelow, "--warn"], ["Critical", t.critBelow, "--crit"]];
+  return [["Warning", t.warnAbove, "--warn"], ["Critical", t.critAbove, "--crit"]];
+}
+
+function makeChart(key, label, min, max) {
+  const canvas = $("chart-" + key);
+  const datasets = [{
+    label, data: [], borderColor: "#58a6ff", backgroundColor: "rgba(88,166,255,.15)",
+    borderWidth: 2, pointRadius: 0, tension: 0.3, fill: false
+  }];
+  thresholdLines(key).forEach(l => datasets.push({
+    label: l[0], data: [], borderColor: cssVar(l[2]), borderWidth: 1.5,
+    borderDash: [6, 4], pointRadius: 0, fill: false
+  }));
+  charts[key] = new Chart(canvas, {
+    type: "line",
+    data: { labels: [], datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      plugins: { legend: { display: false }, tooltip: { filter: item => item.datasetIndex === 0 } },
+      scales: {
+        x: { ticks: { color: cssVar("--muted"), maxTicksLimit: 5, maxRotation: 0 }, grid: { color: cssVar("--border") } },
+        y: { min, max, ticks: { color: cssVar("--muted") }, grid: { color: cssVar("--border") } }
+      }
+    }
+  });
+}
+
+function initCharts() {
+  if (typeof Chart === "undefined") { console.warn("Chart.js failed to load (check internet)"); return; }
+  makeChart("hr", "Heart rate", 30, 170);
+  makeChart("spo2", "SpO2", 80, 100);
+  makeChart("temp", "Temperature", 35, 41);
+}
+
+function pushChartPoint(key, value) {
+  const c = charts[key];
+  if (!c) return;
+  c.data.labels.push(new Date().toLocaleTimeString([], { hour12: false }));
+  c.data.datasets[0].data.push(value);
+  if (c.data.labels.length > HISTORY) { c.data.labels.shift(); c.data.datasets[0].data.shift(); }
+  const n = c.data.labels.length;
+  thresholdLines(key).forEach((l, i) => { c.data.datasets[i + 1].data = new Array(n).fill(l[1]); });
+  c.update("none");
+}
+
+function updateChartTheme() {
+  Object.keys(charts).forEach(key => {
+    const c = charts[key];
+    c.options.scales.x.ticks.color = c.options.scales.y.ticks.color = cssVar("--muted");
+    c.options.scales.x.grid.color = c.options.scales.y.grid.color = cssVar("--border");
+    thresholdLines(key).forEach((l, i) => { c.data.datasets[i + 1].borderColor = cssVar(l[2]); });
+    c.update("none");
+  });
+}
+
+/* ---------- Early warning score (simplified NEWS2: HR, SpO2, temp) ---------- */
+function scoreSpO2(v) { v = Math.round(v); return v >= 96 ? 0 : v >= 94 ? 1 : v >= 92 ? 2 : 3; }
+function scoreHR(v) { v = Math.round(v); return v <= 40 ? 3 : v <= 50 ? 1 : v <= 90 ? 0 : v <= 110 ? 1 : v <= 130 ? 2 : 3; }
+function scoreTemp(v) { v = Math.round(v * 10) / 10; return v <= 35.0 ? 3 : v <= 36.0 ? 1 : v <= 38.0 ? 0 : v <= 39.0 ? 1 : 2; }
+
+function computeNews(v) {
+  const hr = scoreHR(v.hr), spo2 = scoreSpO2(v.spo2), temp = scoreTemp(v.temp);
+  const total = hr + spo2 + temp;
+  const single3 = Math.max(hr, spo2, temp) === 3;
+  const risk = total >= 7 ? "high" : (total >= 5 || single3) ? "medium" : "low";
+  return { hr, spo2, temp, total, single3, risk };
+}
+
+const GAUGE = { cx: 100, cy: 100, r: 78 };
+function gaugePoint(val) {                       // 0 = far left, 10 = far right
+  const a = (180 - val * 18) * Math.PI / 180;
+  return [GAUGE.cx + GAUGE.r * Math.cos(a), GAUGE.cy - GAUGE.r * Math.sin(a)];
+}
+function gaugeArc(v1, v2, cls) {
+  const p1 = gaugePoint(v1), p2 = gaugePoint(v2);
+  return '<path class="seg ' + cls + '" d="M' + p1[0].toFixed(1) + ' ' + p1[1].toFixed(1) +
+         ' A' + GAUGE.r + ' ' + GAUGE.r + ' 0 0 1 ' + p2[0].toFixed(1) + ' ' + p2[1].toFixed(1) + '"/>';
+}
+function buildGauge() {
+  $("gauge").innerHTML =
+    gaugeArc(0, 4.5, "low") + gaugeArc(4.5, 6.5, "medium") + gaugeArc(6.5, 10, "high") +
+    '<text class="gtxt" x="22" y="115">0</text><text class="gtxt" x="178" y="115">10</text>' +
+    '<g id="needle"><line class="needle-line" x1="100" y1="100" x2="38" y2="100"/></g>' +
+    '<circle class="hub" cx="100" cy="100" r="6"/>';
+  setScore(null);
+}
+
+function setScore(v) {
+  const needle = $("needle");
+  if (!v) {
+    $("newsScore").textContent = "--";
+    $("newsLabel").textContent = "NO DATA";
+    $("newsLabel").className = "news-label none";
+    $("newsBreakdown").textContent = "-";
+    if (needle) { needle.style.transform = "rotate(0deg)"; needle.style.opacity = "0.3"; }
+    return;
+  }
+  const n = computeNews(v);
+  $("newsScore").textContent = n.total;
+  $("newsLabel").textContent = n.risk.toUpperCase();
+  $("newsLabel").className = "news-label " + n.risk;
+  $("newsBreakdown").textContent = "HR +" + n.hr + ", SpO2 +" + n.spo2 + ", Temp +" + n.temp +
+    (n.single3 && n.total < 5 ? " (one vital scores 3)" : "");
+  if (needle) { needle.style.transform = "rotate(" + (n.total * 18) + "deg)"; needle.style.opacity = "1"; }
+}
+
+/* ---------- Alert log (only on state CHANGE, newest first) ---------- */
+const LOG_MAX = 100;
+const logEntries = [];
+let lastLevel = null;     // last overall status that was logged
+let wasOffline = false;
+
+function addLog(level, text) {
+  logEntries.unshift({ time: new Date(), level, text });
+  if (logEntries.length > LOG_MAX) logEntries.pop();
+  renderLog();
+}
+
+function renderLog() {
+  const ul = $("logList");
+  ul.innerHTML = "";
+  if (!logEntries.length) {
+    const li = document.createElement("li");
+    li.className = "log-empty";
+    li.textContent = "No events yet";
+    ul.appendChild(li);
+    return;
+  }
+  logEntries.forEach(e => {
+    const li = document.createElement("li");
+    const time = document.createElement("span");
+    time.className = "log-time";
+    time.textContent = e.time.toLocaleTimeString([], { hour12: false });
+    const badge = document.createElement("span");
+    badge.className = "badge " + e.level;
+    badge.textContent = e.level.toUpperCase();
+    const msg = document.createElement("span");
+    msg.textContent = e.text;
+    li.append(time, badge, msg);
+    ul.appendChild(li);
+  });
+}
+
+function abnormalDetails(hr, spo2, temp) {
+  const parts = [];
+  if (levelHR(hr) !== "stable") parts.push("HR " + Math.round(hr) + " bpm (" + levelHR(hr) + ")");
+  if (levelSpO2(spo2) !== "stable") parts.push("SpO2 " + Math.round(spo2) + " % (" + levelSpO2(spo2) + ")");
+  if (levelTemp(temp) !== "stable") parts.push("Temp " + temp.toFixed(1) + " C (" + levelTemp(temp) + ")");
+  return parts.length ? parts.join(", ") : "All vitals within range";
+}
+
+function trackState(hr, spo2, temp) {
+  if (wasOffline) { wasOffline = false; addLog("info", "Data restored, device back online"); }
+  const overall = worst(levelHR(hr), levelSpO2(spo2), levelTemp(temp));
+  if (overall === lastLevel) return;               // no change, nothing to log
+  if (overall === "critical") playBeep();          // beep when the patient BECOMES critical
+  const details = abnormalDetails(hr, spo2, temp);
+  if (lastLevel === null) addLog(overall, "Monitoring started: " + overall.toUpperCase() + ". " + details);
+  else addLog(overall, lastLevel.toUpperCase() + " to " + overall.toUpperCase() + ". " + details);
+  lastLevel = overall;
+}
+
+$("clearLog").addEventListener("click", () => { logEntries.length = 0; renderLog(); });
+
+/* ---------- History table + CSV export ---------- */
+const HIST_MAX = 500, HIST_SHOW = 50;
+const histRows = [];            // newest first (not named "history": that is a browser global)
+
+function addHistory(hr, spo2, temp, status, score) {
+  histRows.unshift({
+    time: new Date(), hr: Math.round(hr), spo2: Math.round(spo2),
+    temp: Math.round(temp * 10) / 10, status, score, source: demoOn ? "demo" : "live"
+  });
+  if (histRows.length > HIST_MAX) histRows.pop();
+  renderHistory();
+}
+
+function renderHistory() {
+  const body = $("histBody");
+  body.innerHTML = "";
+  histRows.slice(0, HIST_SHOW).forEach(h => {
+    const tr = document.createElement("tr");
+    [h.time.toLocaleTimeString([], { hour12: false }), h.hr, h.spo2, h.temp.toFixed(1), h.status.toUpperCase(), h.score]
+      .forEach((val, i) => {
+        const td = document.createElement("td");
+        td.textContent = val;
+        if (i === 4) td.className = "st-" + h.status;
+        tr.appendChild(td);
+      });
+    body.appendChild(tr);
+  });
+  $("histNote").textContent = histRows.length
+    ? "Showing latest " + Math.min(HIST_SHOW, histRows.length) + " of " + histRows.length + " stored readings (max " + HIST_MAX + "). Export CSV saves all stored readings."
+    : "No readings yet.";
+}
+
+function csvCell(v) {
+  const s = String(v);
+  return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+function buildCsv() {
+  const rows = [["timestamp", "hr_bpm", "spo2_percent", "temp_c", "status", "news_score", "source"]];
+  histRows.slice().reverse().forEach(h =>
+    rows.push([h.time.toISOString(), h.hr, h.spo2, h.temp.toFixed(1), h.status, h.score, h.source]));
+  return rows.map(r => r.map(csvCell).join(",")).join("\r\n");
+}
+
+function exportCsv() {
+  if (!histRows.length) { $("histNote").textContent = "Nothing to export yet."; return; }
+  const blob = new Blob(["﻿" + buildCsv()], { type: "text/csv;charset=utf-8" });
+  const d = new Date(), p = n => String(n).padStart(2, "0");
+  const name = "patient-vitals-" + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + "-" + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds()) + ".csv";
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+$("csvBtn").addEventListener("click", exportCsv);
+$("histClear").addEventListener("click", () => { histRows.length = 0; renderHistory(); });
+
+/* ---------- Beep on critical (with mute toggle) ---------- */
+let muted = false;
+try { muted = localStorage.getItem("muted") === "1"; } catch (e) {}
+let audioCtx = null;
+
+function getAudio() {
+  if (!audioCtx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    audioCtx = new AC();
+  }
+  return audioCtx;
+}
+
+function playBeep() {
+  if (muted) return;
+  const ctx = getAudio();
+  if (!ctx) return;
+  if (ctx.state === "suspended") ctx.resume().catch(() => {});
+  const t0 = ctx.currentTime;
+  for (let i = 0; i < 3; i++) {                    // three short beeps
+    const start = t0 + i * 0.25;
+    const osc = ctx.createOscillator(), gain = ctx.createGain();
+    osc.type = "square"; osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(0.12, start + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.18);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(start); osc.stop(start + 0.2);
+  }
+}
+
+function updateMuteBtn() { $("muteBtn").textContent = muted ? "Sound: OFF" : "Sound: ON"; }
+$("muteBtn").addEventListener("click", () => {
+  muted = !muted;
+  try { localStorage.setItem("muted", muted ? "1" : "0"); } catch (e) {}
+  updateMuteBtn();
+  if (!muted) playBeep();                          // short confirmation beep, also unlocks audio
+});
+// Browsers only allow sound after a user gesture: unlock on the first click anywhere.
+document.addEventListener("click", () => {
+  const ctx = getAudio();
+  if (ctx && ctx.state === "suspended") ctx.resume().catch(() => {});
+}, { once: true });
+
+/* ---------- Editable thresholds (saved to localStorage) ---------- */
+const DEFAULT_THRESHOLDS = JSON.parse(JSON.stringify(CONFIG.thresholds));
+const THR_KEY = "thresholds";
+let lastReading = null;
+
+// [group, field, label, step]
+const THR_FIELDS = [
+  ["hr", "warnLow", "HR warning below (bpm)", 1],
+  ["hr", "warnHigh", "HR warning above (bpm)", 1],
+  ["hr", "critLow", "HR critical below (bpm)", 1],
+  ["hr", "critHigh", "HR critical above (bpm)", 1],
+  ["spo2", "warnBelow", "SpO2 warning below (%)", 1],
+  ["spo2", "critBelow", "SpO2 critical below (%)", 1],
+  ["temp", "warnAbove", "Temp warning above (C)", 0.1],
+  ["temp", "critAbove", "Temp critical above (C)", 0.1]
+];
+
+function validateThr(t) {
+  for (const f of THR_FIELDS) {
+    if (!t[f[0]] || !Number.isFinite(t[f[0]][f[1]])) return "Every field needs a number.";
+  }
+  const h = t.hr, s = t.spo2, p = t.temp;
+  if (!(h.critLow < h.warnLow && h.warnLow < h.warnHigh && h.warnHigh < h.critHigh))
+    return "HR must satisfy: critical below < warning below < warning above < critical above.";
+  if (!(s.critBelow < s.warnBelow)) return "SpO2: critical below must be lower than warning below.";
+  if (s.warnBelow > 100 || s.critBelow < 0) return "SpO2 values must be between 0 and 100.";
+  if (!(p.warnAbove < p.critAbove)) return "Temp: warning above must be lower than critical above.";
+  return null;
+}
+
+function loadSavedThresholds() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(THR_KEY));
+    if (saved && !validateThr(saved)) CONFIG.thresholds = saved;
+  } catch (e) { /* no saved thresholds, or storage blocked: keep defaults */ }
+}
+
+function buildThrForm() {
+  const grid = $("thrGrid");
+  grid.innerHTML = "";
+  THR_FIELDS.forEach(f => {
+    const label = document.createElement("label");
+    label.textContent = f[2];
+    const input = document.createElement("input");
+    input.type = "number";
+    input.step = f[3];
+    input.id = "thr-" + f[0] + "-" + f[1];
+    label.appendChild(input);
+    grid.appendChild(label);
+  });
+  fillThrForm();
+}
+
+function fillThrForm() {
+  THR_FIELDS.forEach(f => { $("thr-" + f[0] + "-" + f[1]).value = CONFIG.thresholds[f[0]][f[1]]; });
+}
+
+function thrMessage(text, ok) {
+  const m = $("thrMsg");
+  m.textContent = text;
+  m.className = ok ? "ok" : "err";
+}
+
+function refreshChartThresholds() {
+  Object.keys(charts).forEach(key => {
+    const c = charts[key], n = c.data.labels.length;
+    thresholdLines(key).forEach((l, i) => { c.data.datasets[i + 1].data = new Array(n).fill(l[1]); });
+    c.update("none");
+  });
+}
+
+function applyThresholds(t) {
+  CONFIG.thresholds = t;
+  refreshChartThresholds();
+  // Re-colour the cards/banner for the latest reading (and log the status change, if any)
+  if (lastReading && lastMsgAt && Date.now() - lastMsgAt <= CONFIG.offlineAfterMs) {
+    render(lastReading);
+    trackState(lastReading.hr, lastReading.spo2, lastReading.temp);
+  }
+}
+
+$("thrSave").addEventListener("click", () => {
+  const t = { hr: {}, spo2: {}, temp: {} };
+  THR_FIELDS.forEach(f => { t[f[0]][f[1]] = parseFloat($("thr-" + f[0] + "-" + f[1]).value); });
+  const err = validateThr(t);
+  if (err) { thrMessage(err, false); return; }
+  applyThresholds(t);
+  try { localStorage.setItem(THR_KEY, JSON.stringify(t)); thrMessage("Saved.", true); }
+  catch (e) { thrMessage("Applied, but could not save in this browser.", false); }
+});
+
+$("thrReset").addEventListener("click", () => {
+  applyThresholds(JSON.parse(JSON.stringify(DEFAULT_THRESHOLDS)));
+  fillThrForm();
+  try { localStorage.removeItem(THR_KEY); } catch (e) {}
+  thrMessage("Reset to defaults.", true);
+});
+
+/* ---------- Incoming data (shared by MQTT and demo) ---------- */
+function handleReading(obj) {
+  const hr = Number(obj.hr), spo2 = Number(obj.spo2), temp = Number(obj.temp);
+  if (![hr, spo2, temp].every(Number.isFinite)) {
+    console.warn("Ignored reading with missing/invalid fields:", obj);
+    return;
+  }
+  lastMsgAt = Date.now();
+  lastReading = { hr, spo2, temp };
+  render({ hr, spo2, temp });
+  trackState(hr, spo2, temp);
+  addHistory(hr, spo2, temp, worst(levelHR(hr), levelSpO2(spo2), levelTemp(temp)), computeNews({ hr, spo2, temp }).total);
+  pushChartPoint("hr", Math.round(hr));
+  pushChartPoint("spo2", Math.round(spo2));
+  pushChartPoint("temp", Math.round(temp * 10) / 10);
+  refreshConnStatus();
+}
+
+function onMqttMessage(topic, payload) {
+  if (demoOn) return;
+  let obj;
+  try { obj = JSON.parse(payload.toString()); }
+  catch (e) { console.warn("Malformed JSON ignored:", payload.toString()); return; }
+  if (!obj || typeof obj !== "object") return;
+  handleReading(obj);
+}
+
+/* ---------- Connection / OFFLINE state ---------- */
+function refreshConnStatus() {
+  if (demoOn) { setConn("demo", "Demo data (local)"); return; }
+  const stale = lastMsgAt && (Date.now() - lastMsgAt > CONFIG.offlineAfterMs);
+  if (mqttState === "connected") {
+    if (!lastMsgAt) setConn("wait", "Connected, waiting for data");
+    else if (stale) setConn("bad", "Connected, no data");
+    else setConn("live", "Live");
+  } else if (mqttState === "connecting") setConn("wait", "Connecting...");
+  else if (mqttState === "reconnecting") setConn("wait", "Reconnecting...");
+  else setConn("bad", "Disconnected");
+}
+
+setInterval(() => {
+  if (demoOn) return;
+  if (lastMsgAt && Date.now() - lastMsgAt > CONFIG.offlineAfterMs) {
+    clearToNoData();
+    setBanner("offline", "No data for " + Math.round((Date.now() - lastMsgAt) / 1000) + " s");
+    if (!wasOffline) { wasOffline = true; addLog("offline", "No data for " + CONFIG.offlineAfterMs / 1000 + " s, device OFFLINE"); }
+  }
+  refreshConnStatus();
+}, 1000);
+
+/* ---------- MQTT ---------- */
+function startMqtt() {
+  if (typeof mqtt === "undefined") {
+    setConn("bad", "mqtt.js failed to load (check internet)");
+    return;
+  }
+  client = mqtt.connect(CONFIG.broker, {
+    clientId: "dash-" + Math.random().toString(16).slice(2, 10),
+    reconnectPeriod: 3000,
+    connectTimeout: 8000,
+    clean: true
+  });
+  client.on("connect", () => {
+    mqttState = "connected";
+    client.subscribe(CONFIG.topic, { qos: 0 }, err => { if (err) console.error("Subscribe failed:", err); });
+    refreshConnStatus();
+  });
+  client.on("reconnect", () => { mqttState = "reconnecting"; refreshConnStatus(); });
+  client.on("close", () => { if (mqttState !== "reconnecting") mqttState = "disconnected"; refreshConnStatus(); });
+  client.on("offline", () => { mqttState = "disconnected"; refreshConnStatus(); });
+  client.on("error", e => console.error("MQTT error:", e && e.message));
+  client.on("message", onMqttMessage);
+}
+
+/* ---------- Demo data ---------- */
+const rnd = (a, b) => a + Math.random() * (b - a);
+const SCENARIOS = {
+  normal:  () => ({ hr: rnd(70, 85),   spo2: rnd(96, 99),  temp: rnd(36.5, 37.0) }),
+  fever:   () => ({ hr: rnd(100, 118), spo2: rnd(94, 96),  temp: rnd(38.2, 39.2) }),
+  lowspo2: () => ({ hr: rnd(122, 135), spo2: rnd(86, 91),  temp: rnd(36.8, 37.4) })
+};
+function demoTick() { handleReading(SCENARIOS[demoScenario]()); }
+
+function setDemo(on) {
+  demoOn = on;
+  lastLevel = null;       // new data source: log its first state fresh
+  wasOffline = false;
+  $("demoPanel").classList.toggle("show", on);
+  clearInterval(demoTimer);
+  if (on) {
+    demoScenario = "normal";
+    demoTick();
+    demoTimer = setInterval(demoTick, CONFIG.demoIntervalMs);
+  } else {
+    lastMsgAt = null;
+    clearToNoData();
+    setBanner("wait", "No readings yet");
+    $("meta").textContent = "Last update: never";
+  }
+  refreshConnStatus();
+}
+
+$("demoToggle").addEventListener("change", e => setDemo(e.target.checked));
+document.querySelectorAll("[data-scn]").forEach(btn =>
+  btn.addEventListener("click", () => { demoScenario = btn.dataset.scn; demoTick(); })
+);
+
+/* ---------- Theme ---------- */
+function applyTheme(t) {
+  document.documentElement.setAttribute("data-theme", t);
+  $("themeBtn").textContent = t === "dark" ? "Light mode" : "Dark mode";
+  try { localStorage.setItem("theme", t); } catch (e) {}
+  updateChartTheme();
+}
+$("themeBtn").addEventListener("click", () =>
+  applyTheme(document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark")
+);
+let savedTheme = "dark";
+try { savedTheme = localStorage.getItem("theme") || "dark"; } catch (e) {}
+applyTheme(savedTheme);
+
+/* ---------- Init ---------- */
+loadSavedThresholds();
+buildThrForm();
+buildGauge();
+updateMuteBtn();
+renderHistory();
+initCharts();
+startMqtt();
+refreshConnStatus();
+</script>
+</body>
+</html>
